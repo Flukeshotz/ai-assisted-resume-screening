@@ -1,2 +1,2 @@
 # ai-assisted-resume-screening
-Event-driven, explainable resume relevance scoring system built using n8n. The workflow evaluates incoming resumes against a versioned job description, generates structured relevance scores with human-readable reasoning, and routes low-confidence cases for human review. Designed for fairness, scalability, and real-world hiring workflows.
+This repository contains an n8n-based automation workflow for explainable resume relevance scoring. The system is designed as a decision-support tool for recruiters, emphasizing transparency, fairness, and human-in-the-loop controls.
