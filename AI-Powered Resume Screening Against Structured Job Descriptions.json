@@ -1,0 +1,813 @@
+{
+  "name": "AI-Powered Resume Screening Against Structured Job Descriptions",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Job_Description"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "cf3eefb6-d342-4f9c-ae6e-92513c98d889",
+      "name": "Watch JD Folder",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        24
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "e7caae6e-486c-4248-b722-94c18c721fb8",
+      "name": "Extract JD Text from PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -256,
+        24
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an HR systems assistant.\n\nTask:\nConvert the following Job Description into a structured JSON object.\n\nRules:\n- Extract only what is explicitly stated.\n- Do not infer skills not mentioned.\n- Separate must-have skills from good-to-have skills.\n- Identify role level (intern / fresher / experienced).\n- Identify what kind of impact or outcomes are expected.\n\nOutput strictly in this JSON format:\n{\n  \"role_title\": \"\",\n  \"role_level\": \"\",\n  \"must_have_skills\": [],\n  \"good_to_have_skills\": [],\n  \"domain_context\": \"\",\n  \"expected_experience_signals\": [],\n  \"impact_expectations\": []\n}"
+        }
+      },
+      "id": "679a72a6-61f0-4430-aca0-fc56b1bf318c",
+      "name": "Parse JD Structure",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -32,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "id": "3854252d-520b-4850-a36f-1011a093417a",
+      "name": "Anthropic Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        -24,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"role_title\": {\"type\": \"string\"},\n    \"role_level\": {\"type\": \"string\", \"enum\": [\"intern\", \"fresher\", \"experienced\"]},\n    \"must_have_skills\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"good_to_have_skills\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"domain_context\": {\"type\": \"string\"},\n    \"expected_experience_signals\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"impact_expectations\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n  },\n  \"required\": [\"role_title\", \"role_level\", \"must_have_skills\", \"domain_context\"]\n}"
+      },
+      "id": "3b4eb7db-689b-4460-872e-e46aee675d10",
+      "name": "JD JSON Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        104,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first().json;\nconst fileId = $node[\"Watch JD Folder\"].json.id;\nconst modifiedTime = $node[\"Watch JD Folder\"].json.modifiedTime;\n\nreturn [{\n  json: {\n    ...inputData,\n    jd_id: `${fileId}_${modifiedTime}`,\n    last_updated: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "a62291a5-454c-49f2-a59a-f9cc8649c540",
+      "name": "Add JD Metadata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        24
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID__>"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "JD_Config"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "dc6f8848-f4ec-4255-a213-0b674491d8ce",
+      "name": "Store JD Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        544,
+        24
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "triggerOn": "specificFolder",
+        "folderToWatch": {
+          "__rl": true,
+          "mode": "list",
+          "value": "Resumes"
+        },
+        "event": "fileCreated",
+        "options": {}
+      },
+      "id": "e6dc28ec-5acb-4a43-9f65-0f7adee2c24c",
+      "name": "Watch Resume Folder",
+      "type": "n8n-nodes-base.googleDriveTrigger",
+      "typeVersion": 1,
+      "position": [
+        -480,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "a3bd4aa3-c49d-4d0c-9cbc-9ab9f063b7bb",
+      "name": "Extract Resume Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -256,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "id-1",
+              "leftValue": "={{ $('Extract Resume Text').item.json.text.length }}",
+              "rightValue": "100",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f17fd723-97de-406a-8b0a-e39054eb62ad",
+      "name": "Check Parse Quality",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -32,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a resume parsing assistant.\n\nTask:\nExtract candidate metadata from the resume text.\n\nRules:\n- Extract only what is explicitly stated\n- If a field is not found, leave it empty\n- Do not infer or guess information\n\nOutput in this JSON format:\n{\n  \"name\": \"\",\n  \"email\": \"\",\n  \"phone\": \"\",\n  \"parse_confidence\": \"high | medium | low\"\n}"
+        }
+      },
+      "id": "abf1e7b9-fad3-4690-83b9-c601ea2854fa",
+      "name": "Extract Candidate Metadata",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        192,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "id": "9a11f7a4-2709-4590-affa-f1c3de74c0e1",
+      "name": "Anthropic Model 2",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        200,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"name\": {\"type\": \"string\"},\n    \"email\": {\"type\": \"string\"},\n    \"phone\": {\"type\": \"string\"},\n    \"parse_confidence\": {\"type\": \"string\", \"enum\": [\"high\", \"medium\", \"low\"]}\n  },\n  \"required\": [\"name\", \"parse_confidence\"]\n}"
+      },
+      "id": "06f7797b-9162-4cd1-b788-eed889c9876b",
+      "name": "Metadata Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        328,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a resume analysis assistant.\n\nTask:\nExtract structured information from the resume for evaluation purposes.\n\nRules:\n- Extract skills with evidence (not just listed)\n- Summarize experience or projects\n- Identify impact statements and outcomes\n- Flag resume quality signals (buzzwords, generic language, lack of specifics)\n\nOutput in this JSON format:\n{\n  \"skills_evidence\": [],\n  \"experience_summary\": [],\n  \"projects_summary\": [],\n  \"impact_evidence\": [],\n  \"resume_signal_flags\": []\n}"
+        }
+      },
+      "id": "978593f7-9ca9-4704-9d04-d33cc04babc4",
+      "name": "Parse Resume Structure",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        544,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "id": "bb7374f9-7e1f-471f-89bd-52a08fd26e24",
+      "name": "Anthropic Model 3",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        552,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"skills_evidence\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"experience_summary\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"projects_summary\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"impact_evidence\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"resume_signal_flags\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}}\n  },\n  \"required\": [\"skills_evidence\"]\n}"
+      },
+      "id": "8e1aaec6-ba86-4ddd-b695-00388f7ac0ed",
+      "name": "Resume Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        680,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Resume data: {{ JSON.stringify($json) }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are a candidate classification assistant.\n\nTask:\nClassify the candidate as fresher, experienced, or ambiguous based on their resume.\n\nRules:\n- Fresher: 0-2 years experience, focus on education and projects\n- Experienced: 2+ years professional experience\n- Ambiguous: Unclear or mixed signals\n\nThis classification is non-judgmental and only determines scoring rubric.\n\nOutput in this JSON format:\n{\n  \"classification\": \"fresher | experienced | ambiguous\",\n  \"reasoning\": \"\"\n}"
+        }
+      },
+      "id": "4b094c3b-4d82-4570-a0f3-563300baae1c",
+      "name": "Classify Candidate",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        896,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "id": "77345064-6399-44cc-9c92-e7c28a30e009",
+      "name": "Anthropic Model 4",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        904,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"classification\": {\"type\": \"string\", \"enum\": [\"fresher\", \"experienced\", \"ambiguous\"]},\n    \"reasoning\": {\"type\": \"string\"}\n  },\n  \"required\": [\"classification\", \"reasoning\"]\n}"
+      },
+      "id": "c85687ba-68cd-4f0b-8bb9-d6a5b9699528",
+      "name": "Classification Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1032,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID__>"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "JD_Config"
+        },
+        "options": {
+          "dataLocationOnSheet": {
+            "values": {
+              "rangeDefinition": "detectAutomatically"
+            }
+          }
+        }
+      },
+      "id": "558b4176-80c7-4484-b655-c848ddab6956",
+      "name": "Fetch Latest JD Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1248,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "4791e880-ee59-460d-8821-d6553318dfb8",
+      "name": "Combine Resume and JD Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1472,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Resume: {{ JSON.stringify($json.resume) }}\n\nJob Description: {{ JSON.stringify($json.jd) }}\n\nCandidate Classification: {{ $json.classification }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are an explainable resume scoring assistant.\n\nTask:\nScore this resume against the job description using the appropriate rubric based on candidate classification.\n\nEXPERIENCED RUBRIC (35% skills + 25% experience + 15% domain + 15% impact + 10% quality):\n- Core Skill Match (35): Evidence of must-have skills with depth\n- Relevant Experience (25): Years and relevance of professional work\n- Domain Alignment (15): Industry/domain fit\n- Impact & Outcomes (15): Measurable results and ownership\n- Resume Quality (10): Clarity, specificity, no buzzword stuffing\n\nFRESHER RUBRIC (30% skills + 25% projects + 20% learning + 15% impact + 10% quality):\n- Core Skill Alignment (30): Demonstrated skills through projects/coursework\n- Project Depth & Clarity (25): Quality and complexity of projects\n- Learning & Initiative (20): Self-learning, certifications, contributions\n- Scaled Impact (15): Outcomes relative to experience level\n- Resume Quality (10): Clarity, specificity, no buzzword stuffing\n\nRules:\n- Provide scores for each component with reasoning\n- Identify strengths (why good fit)\n- Identify concerns to probe in interview\n- Assess evaluation confidence (high/medium/low)\n- Name, gender, age, college prestige are EXCLUDED from scoring\n\nOutput in this JSON format:\n{\n  \"overall_score\": 0,\n  \"score_breakdown\": {\n    \"skills_match\": {\"score\": 0, \"reasoning\": \"\"},\n    \"experience_or_projects\": {\"score\": 0, \"reasoning\": \"\"},\n    \"domain_alignment\": {\"score\": 0, \"reasoning\": \"\"},\n    \"impact\": {\"score\": 0, \"reasoning\": \"\"},\n    \"resume_quality\": {\"score\": 0, \"reasoning\": \"\"}\n  },\n  \"why_good_fit\": \"\",\n  \"concerns_to_probe\": [],\n  \"evaluation_confidence\": \"high | medium | low\"\n}"
+        }
+      },
+      "id": "0aa0bfb1-cf30-4d6c-aa13-b536a148f861",
+      "name": "Score Resume",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1696,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "mode": "list",
+          "value": "claude-sonnet-4-5-20250929",
+          "cachedResultName": "Claude Sonnet 4.5"
+        },
+        "options": {}
+      },
+      "id": "72446cde-93d9-4b9b-95e4-e8e6dc657f2e",
+      "name": "Anthropic Model 5",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.3,
+      "position": [
+        1704,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"overall_score\": {\"type\": \"number\"},\n    \"score_breakdown\": {\n      \"type\": \"object\",\n      \"properties\": {\n        \"skills_match\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"score\": {\"type\": \"number\"},\n            \"reasoning\": {\"type\": \"string\"}\n          }\n        },\n        \"experience_or_projects\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"score\": {\"type\": \"number\"},\n            \"reasoning\": {\"type\": \"string\"}\n          }\n        },\n        \"domain_alignment\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"score\": {\"type\": \"number\"},\n            \"reasoning\": {\"type\": \"string\"}\n          }\n        },\n        \"impact\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"score\": {\"type\": \"number\"},\n            \"reasoning\": {\"type\": \"string\"}\n          }\n        },\n        \"resume_quality\": {\n          \"type\": \"object\",\n          \"properties\": {\n            \"score\": {\"type\": \"number\"},\n            \"reasoning\": {\"type\": \"string\"}\n          }\n        }\n      }\n    },\n    \"why_good_fit\": {\"type\": \"string\"},\n    \"concerns_to_probe\": {\"type\": \"array\", \"items\": {\"type\": \"string\"}},\n    \"evaluation_confidence\": {\"type\": \"string\", \"enum\": [\"high\", \"medium\", \"low\"]}\n  },\n  \"required\": [\"overall_score\", \"score_breakdown\", \"why_good_fit\", \"concerns_to_probe\", \"evaluation_confidence\"]\n}"
+      },
+      "id": "435b55e8-010d-4d1d-9328-f1066662e731",
+      "name": "Scoring Schema Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1832,
+        680
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst score = data.overall_score;\nconst parseConfidence = data.parse_confidence || \"high\";\nconst classification = data.classification;\nconst evalConfidence = data.evaluation_confidence;\n\n// Human review required if:\n// - Parse confidence is low\n// - Score is in mid-range (40-60)\n// - Candidate type is ambiguous\n// - Evaluation confidence is low\nconst humanReviewRequired = \n  parseConfidence === \"low\" ||\n  (score >= 40 && score <= 60) ||\n  classification === \"ambiguous\" ||\n  evalConfidence === \"low\";\n\nreturn [{\n  json: {\n    ...data,\n    human_review_required: humanReviewRequired ? \"Yes\" : \"No\"\n  }\n}];"
+      },
+      "id": "05dbda3c-660b-4430-9dc7-dbc3e9991783",
+      "name": "Determine Human Review Flag",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst resumeFileId = $node[\"Watch Resume Folder\"].json.id;\nconst resumeFileLink = `https://drive.google.com/file/d/${resumeFileId}/view`;\nconst jdVersion = data.jd_id || \"unknown\";\n\nreturn [{\n  json: {\n    resume_file_id: resumeFileId,\n    candidate_name: data.name || \"Unknown\",\n    email: data.email || \"\",\n    phone: data.phone || \"\",\n    resume_file_link: resumeFileLink,\n    candidate_type: data.classification || \"unknown\",\n    overall_score: data.overall_score || 0,\n    skill_match_score: data.score_breakdown?.skills_match?.score || 0,\n    experience_project_score: data.score_breakdown?.experience_or_projects?.score || 0,\n    impact_score: data.score_breakdown?.impact?.score || 0,\n    resume_quality_score: data.score_breakdown?.resume_quality?.score || 0,\n    why_good_fit: data.why_good_fit || \"\",\n    concerns_to_probe: (data.concerns_to_probe || []).join(\"; \"),\n    evaluation_confidence: data.evaluation_confidence || \"low\",\n    human_review_required: data.human_review_required || \"Yes\",\n    jd_version: jdVersion,\n    last_evaluated: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "de24593e-7205-4f55-a349-9b1e7e78b38d",
+      "name": "Format Output Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        456
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "<__PLACEHOLDER_VALUE__Google Sheets Document ID__>"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Resume_Evaluations"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": null,
+          "matchingColumns": [
+            "resume_file_id"
+          ]
+        },
+        "options": {}
+      },
+      "id": "41a2b7a5-d06e-4844-880e-241964d42afd",
+      "name": "Upsert to Results Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2496,
+        456
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Watch JD Folder": {
+      "main": [
+        [
+          {
+            "node": "Extract JD Text from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract JD Text from PDF": {
+      "main": [
+        [
+          {
+            "node": "Parse JD Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Parse JD Structure",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JD JSON Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Parse JD Structure",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse JD Structure": {
+      "main": [
+        [
+          {
+            "node": "Add JD Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add JD Metadata": {
+      "main": [
+        [
+          {
+            "node": "Store JD Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Watch Resume Folder": {
+      "main": [
+        [
+          {
+            "node": "Extract Resume Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Resume Text": {
+      "main": [
+        [
+          {
+            "node": "Check Parse Quality",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Parse Quality": {
+      "main": [
+        [
+          {
+            "node": "Extract Candidate Metadata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model 2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extract Candidate Metadata",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Metadata Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Extract Candidate Metadata",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Candidate Metadata": {
+      "main": [
+        [
+          {
+            "node": "Parse Resume Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model 3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Parse Resume Structure",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resume Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Parse Resume Structure",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Resume Structure": {
+      "main": [
+        [
+          {
+            "node": "Classify Candidate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model 4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Classify Candidate",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classification Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Classify Candidate",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify Candidate": {
+      "main": [
+        [
+          {
+            "node": "Fetch Latest JD Config",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Combine Resume and JD Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Latest JD Config": {
+      "main": [
+        [
+          {
+            "node": "Combine Resume and JD Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine Resume and JD Data": {
+      "main": [
+        [
+          {
+            "node": "Score Resume",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Anthropic Model 5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Score Resume",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scoring Schema Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Score Resume",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Resume": {
+      "main": [
+        [
+          {
+            "node": "Determine Human Review Flag",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Determine Human Review Flag": {
+      "main": [
+        [
+          {
+            "node": "Format Output Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Output Row": {
+      "main": [
+        [
+          {
+            "node": "Upsert to Results Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a4a29580-d23a-4297-a0a8-b9de31d51f94",
+  "meta": {
+    "instanceId": "58a891702e4437dcfab6a3e584a39c383fd7079df952e99065aa532378418662"
+  },
+  "id": "UcqjgR5EGlOaLVOz",
+  "tags": []
+}
